@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>MK Cotizador</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @font-face {
+    font-family: "Random Wednesday";
+    src: url("assets/fonts/RandomWednesday.ttf") format("truetype");
+    font-display: swap;
+  }
+  :root {
+    --rosa: #F0A4BE;
+    --rosa-cat: #F0B3C5;
+    --rosa-txt: #C99EAA;
+    --azul: #588AB6;
+    --azul-osc: #2F4A5C;
+    --azul-med: #4A7192;
+    --azul-banda: #D4E5F4;
+    --azul-fila: #F7FBFF;
+    --crema: #FEF7D3;
+    --crema-terminos: #FBF3D2;
+    --ficha-bg: #FEFEFA;
+    --panel: #F5F5EE;
+    --fondo: #EAE8E1;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Poppins", ui-sans-serif, system-ui, sans-serif; background: var(--fondo); color: #333; }
+  .rw { font-family: "Random Wednesday", "Poppins", sans-serif; font-weight: 400; }
+
+  /* ————— Panel del vendedor (solo pantalla) ————— */
+  #panel {
+    position: fixed; inset: 0 auto 0 0; width: 400px; overflow-y: auto;
+    background: #fff; border-right: 1px solid #ddd; padding: 20px 22px 40px; z-index: 10;
+  }
+  #panel h1 { font-family: "Random Wednesday", "Poppins", sans-serif; color: var(--rosa); font-size: 30px; font-weight: 400; }
+  #panel .sub { font-size: 11.5px; color: #999; margin: 2px 0 14px; }
+  #panel h2 { font-size: 13px; color: var(--azul-osc); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .08em; }
+  #panel label { display: block; font-size: 11.5px; color: #666; margin: 8px 0 3px; }
+  #panel input[type=text], #panel input[type=number], #panel select, #panel textarea {
+    width: 100%; padding: 7px 9px; border: 1px solid #d8d8d2; border-radius: 8px;
+    font-family: "Poppins", sans-serif; font-size: 13px; color: #333; background: #fff;
+  }
+  #panel textarea { font-size: 11.5px; line-height: 1.45; min-height: 150px; resize: vertical; }
+  #panel .row2 { display: flex; gap: 8px; } #panel .row2 > div { flex: 1; }
+  .btn {
+    display: inline-block; border: 0; border-radius: 10px; cursor: pointer;
+    font-family: "Poppins", sans-serif; font-weight: 500; font-size: 13.5px; padding: 10px 16px;
+  }
+  .btn:focus-visible, #panel input:focus-visible, #panel select:focus-visible { outline: 2px solid var(--azul); outline-offset: 1px; }
+  .btn-rosa { background: var(--rosa); color: #fff; width: 100%; margin-top: 16px; font-size: 15px; padding: 13px; }
+  .btn-add { background: var(--azul-banda); color: var(--azul-osc); width: 100%; margin-top: 8px; }
+  .btn-mini { background: none; border: 0; color: #c66; font-size: 11px; cursor: pointer; }
+  .item-card { border: 1px solid #e4e4dc; border-radius: 10px; padding: 10px 12px; margin-top: 10px; background: #FBFBF7; }
+  .item-card .nom { font-size: 13px; font-weight: 500; color: var(--azul-osc); }
+  .item-card .precio { font-size: 12px; color: #888; }
+  .chk { font-size: 11.5px; color: #666; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .chk input { accent-color: var(--rosa); }
+  #alerta { color: #b23; font-size: 12px; margin-top: 8px; display: none; }
+  #aviso { color: var(--azul-med); font-size: 12px; margin-top: 8px; display: none; }
+  .hint { font-size: 10.5px; color: #aaa; margin-top: 3px; }
+
+  /* ————— Documento ————— */
+  #doc { margin-left: 400px; padding: 26px 0; display: flex; flex-direction: column; align-items: center; gap: 26px; }
+  .page {
+    width: 1080px; height: 1920px; background: #fff; position: relative; overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0,0,0,.14); flex: 0 0 auto;
+  }
+  #doc .page { transform: scale(var(--s, 1)); transform-origin: top center; margin-bottom: calc(-1920px * (1 - var(--s, 1))); }
+  body.exporting #doc .page { transform: none; margin-bottom: 0; box-shadow: none; }
+
+  @media (max-width: 1000px) {
+    #panel { position: static; width: 100%; border-right: 0; border-bottom: 1px solid #ddd; }
+    #doc { margin-left: 0; padding: 16px; align-items: flex-start; }
+    #doc .page { transform-origin: top left; }
+  }
+
+  /* ——— Documento móvil (diseño base de Bruno, 24/09) ——— */
+  .m-port, .m-ficha, .m-res, .m-term, .m-term2 { background: #FAF8EF; display: flex;
+    flex-direction: column; align-items: center; text-align: center; padding: 96px 90px 84px; }
+  .titulo-m { font-family: "Random Wednesday", "Poppins", sans-serif; font-size: 86px; color: var(--rosa-cat); line-height: 1.06; }
+  .lbl { font-size: 37px; font-weight: 600; color: #F2A9C4; margin: 30px 0 16px; }
+  .pill { min-width: 620px; max-width: 880px; background: #EAF4FC; border-top: 6px solid #BBDCF5;
+    border-radius: 28px; padding: 26px 44px; font-size: 35px; font-weight: 500; color: #85B9E6; }
+
+  .m-port .logo { width: 250px; }
+  .m-port .kick { margin-top: 130px; font-size: 45px; font-weight: 600; color: #F2A9C4; letter-spacing: .1em; }
+  .m-port .nombre { position: relative; font-family: "Random Wednesday", "Poppins", sans-serif;
+    font-size: 100px; color: var(--rosa); line-height: 1.12; padding: 0 84px; margin-top: 6px; }
+  .m-port .ray { position: absolute; width: 56px; top: 12px; }
+  .m-port .r1 { left: 0; } .m-port .r2 { right: 0; transform: scaleX(-1); }
+  .m-port .mico { width: 490px; margin: auto 0; }
+
+  .m-ficha .numb { flex: 0 0 auto; width: 84px; height: 84px; border: 5px solid #BBDCF5; border-radius: 50%;
+    color: #85B9E6; font-size: 44px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+  .m-ficha .desc { font-size: 32px; color: #F2A9C4; line-height: 1.5; margin-top: 26px; max-width: 880px; }
+  .m-ficha .titulo-m { margin-top: 34px; }
+  .foto-zona { display: flex; align-items: center; gap: 48px; margin-top: 52px; }
+  .squircle { position: relative; width: 640px; height: 640px; }
+  .squircle .ph { width: 100%; height: 100%; object-fit: cover; object-position: center 68%; border-radius: 21%; }
+  .squircle .sinfoto { width: 100%; height: 100%; border-radius: 21%; background: var(--crema);
+    display: flex; align-items: center; justify-content: center; }
+  .squircle .sinfoto img { width: 60%; opacity: .85; }
+  .squircle .st1 { position: absolute; top: -18px; left: -52px; width: 96px; z-index: 2; }
+  .squircle .st2 { position: absolute; top: 16px; left: 30px; width: 118px; z-index: 2; }
+  .chips { display: flex; flex-direction: column; gap: 42px; }
+  .acab img { width: 92px; height: 92px; border-radius: 50%; }
+  .acab span { display: block; font-size: 29px; color: #F2A9C4; margin-top: 8px; }
+  .acab.sel img { outline: 6px solid var(--rosa); outline-offset: 4px; }
+  .acab.sel span { font-weight: 600; color: #E98FB4; }
+  .acab:not(.sel) { opacity: .55; }
+  .m-ficha > * { flex: 0 0 auto; }
+  .m-ficha .dib-box { width: 100%; height: 310px; margin-top: 34px;
+    display: flex; align-items: center; justify-content: center; }
+  .m-ficha .dib { max-width: 700px; max-height: 280px; object-fit: contain; }
+  .m-ficha .medtxt { font-size: 32px; color: var(--rosa-txt); }
+  .m-ficha .norma { font-size: 26px; color: #85B9E6; margin-top: 6px; max-width: 860px; }
+  .m-ficha .h-inv { font-family: "Random Wednesday", "Poppins", sans-serif; font-size: 56px; color: var(--rosa-cat); margin-top: 34px; }
+  .m-ficha .pill.inv { margin-top: 20px; font-size: 46px; font-weight: 600; min-width: 520px; }
+  .m-ficha .cap { font-size: 25px; color: #F2A9C4; margin-top: 18px; }
+
+  .m-res .cards { display: flex; flex-direction: column; gap: 30px; margin-top: 72px; width: 100%; }
+  .card-it { display: flex; align-items: center; gap: 26px; background: #E9F3FC; border-radius: 26px;
+    padding: 34px 44px; text-align: left; }
+  .card-it .ci-l { flex: 1; } .card-it .n { font-size: 34px; font-weight: 600; color: #85B9E6; }
+  .card-it .s { font-size: 26px; color: #F2A9C4; margin-top: 5px; }
+  .card-it .ci-c { font-size: 32px; color: #85B9E6; width: 56px; text-align: center; }
+  .card-it .ci-r { font-size: 36px; font-weight: 600; color: #85B9E6; min-width: 200px; text-align: right; }
+  .card-it.rebaja .n, .card-it.rebaja .ci-r { color: #E98FB4; }
+  .m-res .total { width: 100%; background: #FDF3CD; border-radius: 26px; padding: 40px 46px;
+    display: flex; justify-content: space-between; align-items: center; gap: 30px; margin-top: 46px; }
+  .m-res .total span { font-size: 29px; color: #E98FB4; text-align: left; max-width: 470px; }
+  .m-res .total b { font-size: 60px; color: #E98FB4; font-weight: 600; }
+  .m-res .cajero { width: 330px; margin-top: auto; }
+
+  .sec { width: 100%; margin-top: 34px; }
+  .sec .sh { font-size: 34px; font-weight: 600; color: #F2A9C4; margin-bottom: 13px; }
+  .sec .sc { background: #EBF4FC; border-top: 5px solid #BBDCF5; border-radius: 26px;
+    padding: 24px 40px; font-size: 26px; color: #85B9E6; line-height: 1.5; }
+  .sec .sc b { color: #5F9BD6; }
+  .puntos { width: 100%; list-style: none; background: #EBF4FC; border-top: 5px solid #BBDCF5;
+    border-radius: 26px; padding: 34 46px; padding: 34px 46px; margin-top: 34px; text-align: left; }
+  .puntos li { position: relative; padding-left: 40px; font-size: 25px; color: #85B9E6;
+    line-height: 1.45; margin-bottom: 17px; }
+  .puntos li:last-child { margin-bottom: 0; }
+  .puntos li::before { content: "✱"; position: absolute; left: 0; top: 2px; color: #F2A9C4; font-size: 24px; }
+  .m-term2 .cta { display: block; background: #F2ABC4; color: #fff; text-decoration: none;
+    font-family: "Random Wednesday", "Poppins", sans-serif; font-size: 58px; padding: 36px 96px;
+    border-radius: 64px; margin-top: auto; }
+  .m-term2 .nota { font-size: 29px; color: #F2A9C4; margin-top: 32px; line-height: 1.55; }
+  .m-term2 .logo-f { width: 300px; margin-top: auto; }
+
+  #imgview { margin-left: 400px; padding: 18px; background: #FFF6E8; }
+  #imgview .iv-bar { font-size: 13.5px; color: #7A5B2E; margin-bottom: 12px; line-height: 1.5; }
+  #imgview .iv-bar button { margin-left: 8px; border: 1px solid #D8C9A6; background: #fff; border-radius: 8px; padding: 4px 12px; cursor: pointer; }
+  #imgview img { display: block; width: min(100%, 540px); margin: 0 auto 14px; border: 1px solid #E3D9C2; }
+  @media (max-width: 1000px) { #imgview { margin-left: 0; } }
+
+  /* ————— Impresión (uso local) ————— */
+  @page { size: 1080px 1920px; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    #panel { display: none; }
+    #doc { margin: 0; padding: 0; gap: 0; display: block; }
+    .page { box-shadow: none; transform: none !important; margin: 0 !important; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h1>MK Cotizador</h1>
+  <div class="sub">El vendedor elige. El sistema calcula. Precios: lista MK v2.</div>
+
+  <h2>Cliente</h2>
+  <div class="row2">
+    <div><label for="f-num">N° de cotización</label><input type="text" id="f-num"></div>
+    <div><label for="f-fecha">Fecha</label><input type="text" id="f-fecha"></div>
+  </div>
+  <label for="f-cliente">Nombre de la clienta / cliente</label><input type="text" id="f-cliente" placeholder="Marina Risco">
+  <label for="f-dir">Dirección de entrega</label><input type="text" id="f-dir" placeholder="Av. Los Faisanes 327, piso 6">
+  <div class="row2">
+    <div><label for="f-distrito">Distrito</label><select id="f-distrito"></select></div>
+    <div><label for="f-plazo">Plazo de entrega (días háb.)</label><input type="number" id="f-plazo" min="12" placeholder="auto"></div>
+  </div>
+  <div class="hint">El plazo se calcula solo (mínimo 12). Súbelo si la pieza demora más; no baja del mínimo.</div>
+  <label for="f-asesora">Asesora responsable</label><select id="f-asesora"></select>
+  <div class="chk" style="margin-top:10px"><input type="checkbox" id="f-recojo"><label for="f-recojo" style="margin:0">Recojo en showroom (Chacarilla) — sin envío</label></div>
+
+  <h2>Muebles</h2>
+  <select id="f-producto"></select>
+  <button class="btn btn-add" onclick="agregarItem()">+ Agregar a la cotización</button>
+  <button class="btn btn-add" style="background:#F5E6EC;color:#9A5B72" onclick="agregarCustom()">+ Agregar personalizado (precio de Gerencia)</button>
+  <div id="items"></div>
+
+  <h2>Términos y condiciones</h2>
+  <textarea id="f-terminos" rows="9" spellcheck="false"></textarea>
+  <div class="hint">Un término por línea. Se puede editar para esta cotización; al recargar vuelven los estándar.</div>
+
+  <h2>Descuento</h2>
+  <div class="row2">
+    <div><label for="f-desc">% (máx. 5%)</label><input type="number" id="f-desc" min="0" max="5" step="0.5" value="0"></div>
+    <div><label for="f-motivo">Motivo (obligatorio)</label><input type="text" id="f-motivo" placeholder="—"></div>
+  </div>
+  <div class="hint">De 5% a 10% requiere aprobación de Gerencia. Más de 10% no existe.</div>
+
+  <div id="alerta"></div>
+  <div id="aviso"></div>
+  <button class="btn btn-rosa" id="btn-pdf" onclick="descargar()">Descargar PDF</button>
+  <div class="hint" id="hint-pdf" style="text-align:center;margin-top:6px"></div>
+</div>
+
+<div id="doc"></div>
+
+<script>
+// ═══════════ CATÁLOGO — fuente única de precios: lista MK v2 (11/09/2026) ═══════════
+// REGLA: este bloque NO se edita para "ajustar" un precio en una venta. Si el MK cambia, se actualiza acá.
+const F = "assets/fotos/";
+const ACABADOS = [
+  { id: "blanco",   nombre: "Blanco"   },
+  { id: "vainilla", nombre: "Vainilla" },
+  { id: "avocado",  nombre: "Avocado"  },
+  { id: "algodon",  nombre: "Algodón"  },
+  { id: "melon",    nombre: "Melón"    },
+  { id: "arena",    nombre: "Arena"    },
+  { id: "caramel",  nombre: "Caramel"  },
+];
+const ZONAS = {
+  A: { tarifa: 60,  distritos: ["Surco"] },
+  B: { tarifa: 90,  distritos: ["San Borja", "Surquillo", "La Molina", "La Victoria"] },
+  C: { tarifa: 100, distritos: ["San Isidro", "Miraflores", "San Juan de Miraflores", "Barranco", "Chorrillos"] },
+  D: { tarifa: 120, distritos: ["Magdalena", "Cercado de Lima", "Jesús María", "Lince", "Pueblo Libre", "San Miguel"] },
+  E: { tarifa: 130, distritos: ["Ventanilla", "Comas", "San Juan de Lurigancho", "Los Olivos", "Santa Anita", "Ate"] },
+};
+const UMBRAL_ENVIO_GRATIS = 1200;
+const INSTALACION = { hasta2: 120, de3a5: 200 };
+const PRODUCTOS = [
+  { id: "pack-blocky-grande", cat: "Packs", nombre: "Pack Blocky Grande", precio: 2150,
+    desc: "El escritorio evolutivo Blocky de 0.80 m con dos cajoneras con canastas rodantes y la silla Blocky de madera pintada. La opción más amplia de la colección.",
+    medidas: "2 cajoneras de 38 cm · escritorio 80 × 60 cm · silla 30 × 55 cm",
+    en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras, y crece con tu hijo",
+    acabados: "todos", foto: F + "blocky-grande.jpg", dib: "dib-blocky-grande" },
+  { id: "pack-blocky-mediano", cat: "Packs", nombre: "Pack Blocky Mediano", precio: 1950,
+    desc: "El escritorio evolutivo Blocky de 0.65 m con dos cajoneras con canastas rodantes y la silla Blocky de madera pintada.",
+    medidas: "2 cajoneras de 38 cm · escritorio 65 × 60 cm · silla 30 × 55 cm",
+    en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras, y crece con tu hijo",
+    acabados: "todos", foto: F + "blocky-mediano.jpg", dib: "dib-blocky-mediano" },
+  { id: "pack-mini-blocky-65", cat: "Packs", nombre: "Pack Mini Blocky (0.65 m)", precio: 1500,
+    desc: "Su rincón completo en poco más de un metro: escritorio con tablero regulable, cajonera con canasta rodante y silla Blocky.",
+    medidas: "cajonera de 38 cm · escritorio 65 × 60 cm · silla 30 × 55 cm",
+    en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras, y crece con tu hijo",
+    acabados: "todos", foto: F + "mini-blocky.jpg", dib: "dib-mini-blocky" },
+  { id: "pack-mini-blocky-80", cat: "Packs", nombre: "Pack Mini Blocky (0.80 m)", precio: 1600,
+    desc: "Su rincón completo: escritorio de 0.80 m con tablero regulable, cajonera con canasta rodante y silla Blocky.",
+    medidas: "cajonera de 38 cm · escritorio 80 × 60 cm · silla 30 × 55 cm",
+    en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras, y crece con tu hijo",
+    acabados: "todos", foto: F + "mini-blocky.jpg", dib: "dib-mini-blocky" },
+  { id: "pack-nube-grande", cat: "Packs", nombre: "Pack Nube Grande", precio: 2050,
+    desc: "Escritorio evolutivo Nube de 0.80 m con juguetero de canastas rodantes y silla Pétalo de madera maciza.",
+    medidas: "juguetero 74 cm · escritorio 80 × 63 cm · silla Pétalo 53 cm",
+    en1729: "Tablero evolutivo con ranuras a 3 alturas (47 / 52 / 57 cm): crece con tu hijo",
+    acabados: "todos", foto: F + "nube-grande.jpg", dib: "dib-nube-grande" },
+  { id: "pack-nube-mediano", cat: "Packs", nombre: "Pack Nube Mediano", precio: 1900,
+    desc: "Escritorio evolutivo Nube de 0.65 m con juguetero de canastas rodantes y silla Pétalo de madera maciza.",
+    medidas: "juguetero 74 cm · escritorio 65 × 63 cm · silla Pétalo 53 cm",
+    en1729: "Tablero evolutivo con ranuras a 3 alturas (47 / 52 / 57 cm): crece con tu hijo",
+    acabados: "todos", foto: F + "nube-mediano.jpg", dib: "dib-nube-mediano" },
+  { id: "pack-mona", cat: "Packs", nombre: "Pack Mona", precio: 2200,
+    desc: "Escritorio evolutivo de 0.65 m con cajonera de canasta rodante, silla Pétalo de madera y espejo Mona en forma de flor, que la invita a reconocerse y ganar autonomía.",
+    medidas: "cajonera de 38 cm · escritorio 65 × 60 cm · espejo Mona 70 cm · silla Pétalo 53 cm",
+    en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras, y crece con tu hijo",
+    acabados: "todos", foto: F + "pack-mona.jpg", dib: "dib-pack-mona" },
+  { id: "mesa-nube-1s", cat: "Packs", nombre: "Pack Mesa Nube + 1 silla", precio: 1650, madera: true,
+    desc: "¿Hora de jugar al té o de pintar? Mesa redonda de madera maciza con silla Pétalo, sin una sola esquina en el camino.",
+    medidas: "mesa ⌀ 70 × 50 cm · silla Pétalo 53 cm",
+    en1729: "Asiento a 30 cm del piso: los pies llegan al suelo y la espalda va apoyada",
+    acabados: ["caramel"], foto: F + "mesa-nube.jpg", dib: "dib-mesa-nube" },
+  { id: "mesa-nube-2s", cat: "Packs", nombre: "Pack Mesa Nube + 2 sillas", precio: 1800, madera: true,
+    desc: "¿Hora de jugar al té o de pintar? Mesa redonda de madera maciza con dos sillas Pétalo, ideal para compartir.",
+    medidas: "mesa ⌀ 70 × 50 cm · 2 sillas Pétalo 53 cm",
+    en1729: "Asiento a 30 cm del piso: los pies llegan al suelo y la espalda va apoyada",
+    acabados: ["caramel"], foto: F + "mesa-nube.jpg", dib: "dib-mesa-nube" },
+  { id: "org-mini", cat: "Organizadores", nombre: "Organizador Blocky Mini (0.82 m)", precio: 1200,
+    desc: "Organizador de melamina con canastas rodantes, diseñado para ordenar y facilitar la rutina diaria de los niños.",
+    medidas: "78 × 47 × 67 cm", en1729: null,
+    acabados: "todos", foto: F + "organizador.jpg", dib: "dib-org-mini" },
+  { id: "org-mediano", cat: "Organizadores", nombre: "Organizador Blocky Mediano (1.14 m)", precio: 1850,
+    desc: "Tres canastas con ruedas que salen, se llenan y vuelven a entrar: saca la que necesita y la devuelve solo.",
+    medidas: "114 × 47 × 67 cm", en1729: null,
+    acabados: "todos", foto: F + "organizador.jpg", dib: "dib-org-mediano" },
+  { id: "org-grande", cat: "Organizadores", nombre: "Organizador Blocky Grande (1.50 m)", precio: 2100,
+    desc: "El organizador más amplio de la colección: cuatro canastas rodantes para ordenar todo el cuarto de juegos.",
+    medidas: "150 × 47 × 67 cm", en1729: null,
+    acabados: "todos", foto: F + "organizador.jpg", dib: "dib-org-grande" },
+  { id: "librero-nube", cat: "Libreros", nombre: "Librero Nube", precio: 750,
+    desc: "A los dos años tu hijo no lee lomos, pero reconoce una portada al instante: puede mirar, sacar y devolver sus libros solo.",
+    medidas: "74 × 32 × 65 cm", en1729: null,
+    acabados: "todos", foto: F + "librero-nube.jpg", dib: "dib-librero-nube" },
+  { id: "librero-giratorio", cat: "Libreros", nombre: "Librero Giratorio Blocky", precio: 750,
+    desc: "Le da la vuelta y aparece otro libro: ocho compartimentos en dos niveles que giran sobre su base.",
+    medidas: "⌀ 46 × 75 cm", en1729: null,
+    acabados: "todos", foto: F + "librero-giratorio.jpg", dib: "dib-librero-giratorio" },
+  { id: "librero-nube-madera", cat: "Libreros", nombre: "Librero Nube en madera", precio: 1300, madera: true,
+    desc: "El Librero Nube trabajado en madera maciza, con el mismo frente de nubes a su altura.",
+    medidas: "74 × 32 × 65 cm", en1729: null,
+    acabados: ["caramel"], foto: F + "librero-nube.jpg", dib: "dib-librero-nube" },
+  { id: "juguetero-nube", cat: "Jugueteros", nombre: "Juguetero Nube", precio: 1200,
+    desc: "Dos canastas, y todo cabe: tira de una, saca lo que va a usar y la devuelve empujándola.",
+    medidas: "74 × 45 × 63 cm", en1729: null,
+    acabados: "todos", foto: F + "juguetero-nube.jpg", dib: "dib-juguetero-nube" },
+  { id: "repisa-nube-40", cat: "Repisas", nombre: "Repisa Nube (40 cm)", precio: 200,
+    desc: "Un borde de nubes a la altura de sus ojos: libera el piso y deja sus favoritos donde él los alcanza solo.",
+    medidas: "40 × 15 cm", en1729: null,
+    acabados: "todos", foto: F + "repisa-nube.jpg", dib: "dib-repisa-nube" },
+  { id: "repisa-nube-60", cat: "Repisas", nombre: "Repisa Nube (60 cm)", precio: 250,
+    desc: "Un borde de nubes a la altura de sus ojos: libera el piso y deja sus favoritos donde él los alcanza solo.",
+    medidas: "60 × 15 cm", en1729: null,
+    acabados: "todos", foto: F + "repisa-nube.jpg", dib: "dib-repisa-nube" },
+  { id: "repisa-nube-80", cat: "Repisas", nombre: "Repisa Nube (80 cm)", precio: 290,
+    desc: "Un borde de nubes a la altura de sus ojos: libera el piso y deja sus favoritos donde él los alcanza solo.",
+    medidas: "80 × 15 cm", en1729: null,
+    acabados: "todos", foto: F + "repisa-nube.jpg", dib: "dib-repisa-nube" },
+  { id: "repisa-librero-40", cat: "Repisas", nombre: "Repisa Librero Nube (40 cm)", precio: 200,
+    desc: "La repisa con canal para libros: portadas de frente, a su altura, listas para elegir.",
+    medidas: "40 × 15 cm", en1729: null,
+    acabados: "todos", foto: F + "repisa-nube.jpg", dib: "dib-repisa-librero" },
+  { id: "repisa-librero-60", cat: "Repisas", nombre: "Repisa Librero Nube (60 cm)", precio: 250,
+    desc: "La repisa con canal para libros: portadas de frente, a su altura, listas para elegir.",
+    medidas: "60 × 15 cm", en1729: null,
+    acabados: "todos", foto: F + "repisa-nube.jpg", dib: "dib-repisa-librero" },
+  { id: "repisa-librero-80", cat: "Repisas", nombre: "Repisa Librero Nube (80 cm)", precio: 290,
+    desc: "La repisa con canal para libros: portadas de frente, a su altura, listas para elegir.",
+    medidas: "80 × 15 cm", en1729: null,
+    acabados: "todos", foto: F + "repisa-nube.jpg", dib: "dib-repisa-librero" },
+  { id: "silla-blocky", cat: "Sillas y complementos", nombre: "Silla Blocky", precio: 400, madera: true,
+    desc: "Con los pies en el piso: asiento a 32 cm para sentarse con las rodillas en ángulo recto y la espalda apoyada.",
+    medidas: "30 × 55 cm", en1729: "Asiento a 32 cm: los pies llegan al suelo y la espalda va apoyada",
+    acabados: "todos", foto: F + "silla-blocky.jpg", dib: null },
+  { id: "silla-petalo", cat: "Sillas y complementos", nombre: "Silla Pétalo", precio: 380, madera: true,
+    desc: "Asiento redondo y respaldo que la abraza por detrás, en madera maciza de cachimbo.",
+    medidas: "53 cm de alto · asiento a 30 cm", en1729: "Asiento a 30 cm del piso: los pies llegan al suelo y la espalda va apoyada",
+    acabados: ["caramel"], foto: F + "silla-petalo.jpg", dib: null },
+  { id: "mesa-nube-sola", cat: "Sillas y complementos", nombre: "Mesa Nube (solo mesa)", precio: 1200, madera: true,
+    desc: "Tablero redondo de 70 cm a su altura, patas torneadas y ni una esquina en el camino.",
+    medidas: "⌀ 70 × 50 cm", en1729: null,
+    acabados: ["caramel"], foto: F + "mesa-nube.jpg", dib: "dib-mesa-nube" },
+  { id: "espejo-petalo", cat: "Sillas y complementos", nombre: "Espejo Pétalo", precio: 650,
+    desc: "Espejo en forma de flor que los invita a reconocerse, explorar y ganar autonomía.",
+    medidas: "⌀ 70 cm", en1729: null,
+    acabados: "todos", foto: F + "pack-mona.jpg", dib: null },
+  { id: "lampara-nube", cat: "Sillas y complementos", nombre: "Lámpara Nube", precio: 1750, madera: true,
+    desc: "Madera torneada y pintada a mano, con pantalla de tela que reparte la luz sin encandilar: la luz del rincón de lectura.",
+    medidas: "135 cm de alto", en1729: null,
+    acabados: ["caramel"], foto: F + "lampara-nube.jpg", dib: "dib-lampara-nube" },
+  { id: "esc-blocky-80", cat: "Escritorios y módulos", nombre: "Escritorio Blocky (0.80 m)", precio: 650,
+    desc: "El escritorio evolutivo Blocky solo, con tablero regulable en tres alturas.",
+    medidas: "80 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
+    acabados: "todos", foto: null, dib: null },
+  { id: "esc-blocky-65", cat: "Escritorios y módulos", nombre: "Escritorio Blocky (0.65 m)", precio: 600,
+    desc: "El escritorio evolutivo Blocky solo, con tablero regulable en tres alturas.",
+    medidas: "65 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
+    acabados: "todos", foto: null, dib: null },
+  { id: "esc-nube-80", cat: "Escritorios y módulos", nombre: "Escritorio Nube (0.80 m)", precio: 650,
+    desc: "El escritorio evolutivo Nube solo, con tablero en tres alturas.",
+    medidas: "80 × 63 cm", en1729: "Tablero evolutivo con ranuras a 3 alturas",
+    acabados: "todos", foto: null, dib: null },
+  { id: "esc-nube-65", cat: "Escritorios y módulos", nombre: "Escritorio Nube (0.65 m)", precio: 600,
+    desc: "El escritorio evolutivo Nube solo, con tablero en tres alturas.",
+    medidas: "65 × 63 cm", en1729: "Tablero evolutivo con ranuras a 3 alturas",
+    acabados: "todos", foto: null, dib: null },
+  { id: "esc-blocky-g-2caj", cat: "Escritorios y módulos", nombre: "Escritorio grande (0.80 m) + 2 cajoneras — Blocky", precio: 1750,
+    desc: "Escritorio Blocky de 0.80 m con dos cajoneras de canasta rodante.",
+    medidas: "2 cajoneras de 38 cm · escritorio 80 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
+    acabados: "todos", foto: F + "blocky-grande.jpg", dib: null },
+  { id: "esc-blocky-m-2caj", cat: "Escritorios y módulos", nombre: "Escritorio mediano (0.65 m) + 2 cajoneras — Blocky", precio: 1650,
+    desc: "Escritorio Blocky de 0.65 m con dos cajoneras de canasta rodante.",
+    medidas: "2 cajoneras de 38 cm · escritorio 65 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
+    acabados: "todos", foto: F + "blocky-mediano.jpg", dib: null },
+  { id: "esc-blocky-mini80-1caj", cat: "Escritorios y módulos", nombre: "Escritorio mini (0.80 m) + 1 cajonera — Blocky", precio: 1650,
+    desc: "Escritorio Blocky de 0.80 m con una cajonera de canasta rodante.",
+    medidas: "cajonera de 38 cm · escritorio 80 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
+    acabados: "todos", foto: null, dib: null },
+  { id: "esc-blocky-mini65-1caj", cat: "Escritorios y módulos", nombre: "Escritorio mini (0.65 m) + 1 cajonera — Blocky", precio: 1050,
+    desc: "Escritorio Blocky de 0.65 m con una cajonera de canasta rodante.",
+    medidas: "cajonera de 38 cm · escritorio 65 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
+    acabados: "todos", foto: null, dib: null },
+  { id: "esc-nube-g-jug", cat: "Escritorios y módulos", nombre: "Escritorio grande (0.80 m) + juguetero — Nube", precio: 1700,
+    desc: "Escritorio Nube de 0.80 m con juguetero de canastas rodantes.",
+    medidas: "juguetero 74 cm · escritorio 80 × 63 cm", en1729: "Tablero evolutivo con ranuras a 3 alturas",
+    acabados: "todos", foto: F + "nube-grande.jpg", dib: null },
+  { id: "esc-nube-m-jug", cat: "Escritorios y módulos", nombre: "Escritorio mediano (0.65 m) + juguetero — Nube", precio: 1600,
+    desc: "Escritorio Nube de 0.65 m con juguetero de canastas rodantes.",
+    medidas: "juguetero 74 cm · escritorio 65 × 63 cm", en1729: "Tablero evolutivo con ranuras a 3 alturas",
+    acabados: "todos", foto: F + "nube-mediano.jpg", dib: null },
+  { id: "cajonera-38", cat: "Escritorios y módulos", nombre: "Cajonera de 38 cm — Blocky", precio: 490,
+    desc: "Cajonera Blocky con canasta rodante: sale, se llena y vuelve a entrar.",
+    medidas: "38 × 60 cm", en1729: null,
+    acabados: "todos", foto: null, dib: null },
+];
+const NIVEL2 = [
+  { id: "color",   nombre: "Color fuera de carta",     pct: 10, dias: 2 },
+  { id: "medida",  nombre: "Medida especial (±20 cm)", pct: 15, dias: 2 },
+  { id: "acabado", nombre: "Acabado especial",         pct: 20, dias: 3 },
+];
+function acabadosDe(p) {
+  return p.acabados === "todos" ? ACABADOS.map(a => a.id) : (p.acabados || []);
+}
+const ASESORAS = [
+  { nombre: "Eliana Varese",   wa: "51913580567" },
+  { nombre: "Dánisa Barturen", wa: "51967300659" },
+  { nombre: "Gabriela Mendoza", wa: "51913958629" },
+];
+const fmtWa = w => "(+51) " + w.slice(2, 5) + " " + w.slice(5, 8) + " " + w.slice(8);
+const CUENTA = { banco: "Cuenta de ahorros en soles BCP", numero: "19471865480091", cci: "00219417186548009197", titular: "Mono Atelier S.A.C." };
+const WHATSAPP = "51913580567";
+
+// ═══════════ App ═══════════
+const $ = id => document.getElementById(id);
+const fmt = n => "S/. " + n.toLocaleString("es-PE", { maximumFractionDigits: 0 });
+const hoy = new Date();
+const fVal = new Date(hoy.getTime() + 7 * 864e5);
+const fFecha = d => d.toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
+const lsGet = (k, dflt) => { try { return localStorage.getItem(k) ?? dflt; } catch (e) { return dflt; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const enArtifact = !!(window.claude && window.claude.use);
+const dbP = enArtifact ? window.claude.use("db").catch(() => null) : Promise.resolve(null);
+
+let items = [];
+
+function init() {
+  const n = parseInt(lsGet("mk-cot-n", "141"), 10) || 141;
+  $("f-num").value = "MK-2026-" + String(n).padStart(4, "0");
+  $("f-fecha").value = fFecha(hoy);
+  const selD = $("f-distrito");
+  selD.add(new Option("Por confirmar — el lead aún no da distrito", "TBD"));
+  Object.entries(ZONAS).forEach(([z, d]) => d.distritos.forEach(dist => selD.add(new Option(dist + " (zona " + z + ")", dist))));
+  selD.add(new Option("Zona F / afueras — envío por cotizar", "F"));
+  selD.add(new Option("Provincia — envío por cotizar (Olva)", "PROV"));
+  const selA = $("f-asesora");
+  ASESORAS.forEach(a => selA.add(new Option(a.nombre, a.nombre)));
+  const selP = $("f-producto");
+  [...new Set(PRODUCTOS.map(p => p.cat))].forEach(c => {
+    const g = document.createElement("optgroup"); g.label = c;
+    PRODUCTOS.filter(p => p.cat === c).forEach(p => g.appendChild(new Option(p.nombre + " — " + fmt(p.precio), p.id)));
+    selP.appendChild(g);
+  });
+  document.querySelectorAll("#panel input, #panel select").forEach(el => el.addEventListener("input", render));
+  const fit = () => {
+    const stacked = window.innerWidth <= 1000;
+    const s = Math.min(1, (window.innerWidth - (stacked ? 48 : 440)) / 1080);
+    document.documentElement.style.setProperty("--s", s);
+  };
+  window.addEventListener("resize", fit); fit();
+  $("f-terminos").value = [
+    "Presupuesto válido por 07 días calendario, hasta el " + fFecha(fVal) + ".",
+    "Todos los precios incluyen IGV y se emite comprobante de pago.",
+    "El plazo de producción inicia el día hábil siguiente al abono del 50% y a la aprobación por escrito de acabados y especificaciones.",
+    "El adelanto no es reembolsable una vez iniciada la producción.",
+    "Cualquier adicional o modificación posterior a la aprobación se cotiza por separado y puede variar el plazo de entrega.",
+    "El cliente asegura el espacio libre y con acceso el día de la entrega.",
+    "Si el mueble está listo antes del plazo, se le avisa al cliente y se adelanta la entrega.",
+    "Retrasos por causas externas (clima, proveedores, fuerza mayor) no son penalizables.",
+    "Los tonos, vetas y texturas pueden presentar ligeras variaciones respecto de muestras o renders, sin que ello constituya defecto.",
+  ].join("\n");
+  $("hint-pdf").textContent = enArtifact
+    ? "Se descarga el archivo listo para mandar por WhatsApp."
+    : "En el diálogo elige “Guardar como PDF”, márgenes: ninguno, con gráficos de fondo.";
+  if (new URLSearchParams(location.search).get("demo")) {
+    $("f-cliente").value = "Marina Risco";
+    $("f-dir").value = "Av. Los Faisanes 327 (piso 6, torre C)";
+    $("f-distrito").value = "Chorrillos";
+    items = [
+      { pid: "pack-blocky-mediano", cant: 1, acabado: "algodon", n2: [] },
+      { pid: "pack-blocky-grande", cant: 1, acabado: "algodon", n2: [] },
+    ];
+  }
+  // Correlativo compartido (solo cuando hay sesión de claude.ai con permiso de escritura)
+  dbP.then(async db => {
+    if (!db) return;
+    try {
+      const s = await db.doc("contador/actual").get();
+      if (s.exists) {
+        const remoto = parseInt(s.data().n, 10);
+        if (remoto > n) { $("f-num").value = "MK-2026-" + String(remoto).padStart(4, "0"); render(); }
+      }
+    } catch (e) {}
+  });
+  render();
+}
+
+function agregarItem() {
+  const p = PRODUCTOS.find(x => x.id === $("f-producto").value);
+  if (!p) return;
+  const disp = acabadosDe(p);
+  items.push({ pid: p.id, cant: 1, acabado: disp.length === 1 ? disp[0] : null, n2: [] });
+  render();
+}
+function agregarCustom() {
+  items.push({ custom: true, nombre: "", descc: "", medidas: "", color: "", precio: 0, cant: 1, n2: [] });
+  render();
+}
+function quitarItem(i) { items.splice(i, 1); render(); }
+function setItem(i, campo, val) {
+  if (campo === "cant") items[i].cant = Math.max(1, parseInt(val || "1", 10));
+  else items[i][campo] = val;
+  render();
+}
+function setFoto(i, input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    const esc0 = Math.min(1, 1200 / Math.max(img.width, img.height));
+    const cv = document.createElement("canvas");
+    cv.width = Math.round(img.width * esc0); cv.height = Math.round(img.height * esc0);
+    cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+    items[i].fotoData = cv.toDataURL("image/jpeg", 0.87);
+    URL.revokeObjectURL(img.src);
+    render();
+  };
+  img.src = URL.createObjectURL(f);
+}
+function toggleN2(i, id) {
+  const a = items[i].n2;
+  a.includes(id) ? a.splice(a.indexOf(id), 1) : a.push(id);
+  render();
+}
+
+function calc() {
+  const distrito = $("f-distrito").value;
+  const recojo = $("f-recojo").checked;
+  const lineas = items.map(it => {
+    if (it.custom) {
+      const p = { nombre: it.nombre || "Mueble personalizado", desc: it.descc || "Pieza única diseñada y fabricada a medida para tu espacio.",
+        medidas: it.medidas || "", en1729: null, foto: it.fotoData || null, dib: null, custom: true };
+      const unit = Math.round(parseFloat(it.precio) || 0);
+      return { ...it, p, pct: 0, unit, sub: unit * it.cant, colorTxt: it.color };
+    }
+    const p = PRODUCTOS.find(x => x.id === it.pid);
+    let pct = it.n2.reduce((s, id) => s + NIVEL2.find(n => n.id === id).pct, 0);
+    pct = Math.min(pct, 40);
+    const unit = Math.round(p.precio * (1 + pct / 100));
+    const a = ACABADOS.find(a => a.id === it.acabado);
+    return { ...it, p, pct, unit, sub: unit * it.cant, colorTxt: a ? a.nombre : "" };
+  });
+  const muebles = lineas.reduce((s, l) => s + l.cant, 0);
+  const subProductos = lineas.reduce((s, l) => s + l.sub, 0);
+  const inst = 0;
+  const sinItems = muebles === 0;
+  let envio;
+  const zona = Object.entries(ZONAS).find(([z, d]) => d.distritos.includes(distrito));
+  if (recojo) envio = { texto: "Recojo en showroom — Chacarilla, Surco", valor: 0, tachado: null };
+  else if (zona) {
+    const tarifa = zona[1].tarifa;
+    envio = subProductos >= UMBRAL_ENVIO_GRATIS
+      ? { texto: "Envío a " + distrito + " — incluido en tu compra", valor: 0, tachado: tarifa }
+      : { texto: "Envío a " + distrito + " (zona " + zona[0] + ")", valor: tarifa, tachado: null };
+  } else if (distrito === "TBD") {
+    envio = { texto: "Envío — se confirma con la dirección", valor: 0, tachado: null, porCotizar: true, tbd: true, gratisLima: subProductos >= UMBRAL_ENVIO_GRATIS };
+  } else envio = { texto: distrito === "PROV" ? "Envío a provincia — se cotiza con Olva" : "Envío — se cotiza según dirección", valor: 0, tachado: null, porCotizar: true };
+  const descPct = Math.min(parseFloat($("f-desc").value || "0") || 0, 5);
+  const instCobrada = envio.tbd ? 0 : inst;
+  const base = sinItems ? 0 : subProductos + instCobrada + envio.valor;
+  const desc = Math.round(base * descPct / 100);
+  const madera = lineas.some(l => l.p.madera);
+  const n2dias = Math.max(0, ...lineas.flatMap(l => l.n2.map(id => NIVEL2.find(n => n.id === id).dias)), 0);
+  const custom = lineas.some(l => l.custom);
+  const plazoMin = Math.max(12 + n2dias, custom ? 15 : 0);
+  const plazoManual = parseInt($("f-plazo").value || "0", 10) || 0;
+  const plazo = Math.max(plazoMin, plazoManual);
+  return { lineas, muebles, subProductos, inst, envio, descPct, desc, total: base - desc, plazo, recojo };
+}
+
+function renderPanel(c) {
+  $("items").innerHTML = c.lineas.map((l, i) => l.custom ? `
+    <div class="item-card" style="border-color:#E8CFDB">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span class="nom">Personalizado (Nivel 3)</span>
+        <button class="btn-mini" onclick="quitarItem(${i})">quitar</button>
+      </div>
+      <label>Nombre del mueble</label><input type="text" value="${esc(l.nombre)}" placeholder="Litera casita a medida" onchange="setItem(${i},'nombre',this.value)">
+      <label>Descripción corta (para la ficha)</label><input type="text" value="${esc(l.descc)}" placeholder="Litera en melamina con escalera de cajones…" onchange="setItem(${i},'descc',this.value)">
+      <div class="row2">
+        <div><label>Medidas</label><input type="text" value="${esc(l.medidas)}" placeholder="180 × 90 × 160 cm" onchange="setItem(${i},'medidas',this.value)"></div>
+        <div><label>Color</label><input type="text" value="${esc(l.color)}" placeholder="Algodón" onchange="setItem(${i},'color',this.value)"></div>
+      </div>
+      <div class="row2">
+        <div><label>Precio aprobado por Gerencia (S/.)</label><input type="number" min="0" value="${l.precio || ""}" onchange="setItem(${i},'precio',this.value)"></div>
+        <div><label>Cantidad</label><input type="number" min="1" value="${l.cant}" onchange="setItem(${i},'cant',this.value)"></div>
+      </div>
+      <label>Foto o render del mueble ${l.fotoData ? "· <b style=\'color:#4a8\'>cargada ✓</b>" : "(recomendado)"}</label>
+      <input type="file" accept="image/*" onchange="setFoto(${i}, this)">
+      <div class="hint">Nivel 3: el precio no se inventa — lo autoriza Gerencia y acá solo se transcribe.</div>
+    </div>` : `
+    <div class="item-card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span class="nom">${l.p.nombre}</span>
+        <button class="btn-mini" onclick="quitarItem(${i})">quitar</button>
+      </div>
+      <div class="precio">${fmt(l.p.precio)}${l.pct ? " + " + l.pct + "% personalización = <b>" + fmt(l.unit) + "</b>" : ""} · subtotal <b>${fmt(l.sub)}</b></div>
+      <div class="row2" style="margin-top:6px">
+        <div><label>Cantidad</label><input type="number" min="1" value="${l.cant}" onchange="setItem(${i},'cant',this.value)"></div>
+        <div><label>Acabado / color</label>
+          <select onchange="setItem(${i},'acabado',this.value)">
+            <option value="">— elegir —</option>
+            ${ACABADOS.filter(a => acabadosDe(l.p).includes(a.id))
+              .map(a => `<option value="${a.id}" ${l.acabado === a.id ? "selected" : ""}>${a.nombre}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <label>Detalle de colores por pieza (opcional)</label>
+      <input type="text" value="${esc(l.colorDet || "")}" placeholder="Escritorio vainilla · cajonera panela · silla algodón" onchange="setItem(${i},'colorDet',this.value)">
+      ${NIVEL2.map(n => `<div class="chk"><input type="checkbox" id="n2-${i}-${n.id}" ${l.n2.includes(n.id) ? "checked" : ""} onchange="toggleN2(${i},'${n.id}')"><label for="n2-${i}-${n.id}" style="margin:0">${n.nombre} (+${n.pct}%)</label></div>`).join("")}
+    </div>`).join("");
+}
+
+function esc(s) { return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function render() {
+  const c = calc();
+  renderPanel(c);
+  const num = $("f-num").value, cliente = esc($("f-cliente").value) || "—",
+        dir = esc($("f-dir").value), distrito = $("f-distrito").value, ases = $("f-asesora").value;
+  const distTxt = distrito === "PROV" ? "Provincia" : distrito === "F" ? "Lima (afueras)" : distrito === "TBD" ? "Lima — por confirmar" : distrito;
+
+  const rayo = `<svg class="ray" viewBox="0 0 40 40" aria-hidden="true"><path d="M8 34 L15 26 M4 19 L13 19 M11 6 L17 13" stroke="#F0A4BE" stroke-width="4.5" stroke-linecap="round" fill="none"/></svg>`;
+  const portada = `
+  <div class="page m-port">
+    <img class="logo" src="assets/logo-rosa.png" alt="Mono Kids">
+    <div class="kick">COTIZACIÓN PARA</div>
+    <div class="nombre">${rayo.replace('class="ray"','class="ray r1"')}${cliente}${rayo.replace('class="ray"','class="ray r2"')}</div>
+    <img class="mico" src="assets/mico-clipboard.png" alt="">
+    <div class="lbl">Fecha de emisión</div>
+    <div class="pill">${$("f-fecha").value}</div>
+    <div class="lbl">Entrega en</div>
+    <div class="pill">${dir ? dir + " — " + distTxt : (distrito === "TBD" ? "Por confirmar" : distTxt)}${c.recojo ? " · recojo en showroom" : ""}</div>
+  </div>`;
+
+  const fichas = c.lineas.map((l, idx) => {
+    const aSel = ACABADOS.find(x => x.id === l.acabado);
+    const chips = (aSel ? `<div class="acab sel"><img src="assets/chip-${aSel.id}.png" alt=""><span>${aSel.nombre}</span></div>` : "")
+      + (l.custom && l.color ? `<div class="acab sel"><span>${esc(l.color)}</span></div>` : "");
+    const detalle = (l.cant > 1 || l.pct)
+      ? fmt(l.unit) + " c/u · " + l.cant + (l.cant > 1 ? " unidades" : " unidad") + (l.pct ? " · personalización +" + l.pct + "%" : "") + "<br>"
+      : "";
+    return `
+    <div class="page m-ficha">
+      <div class="numb">${idx + 1}</div>
+      <div class="titulo-m">${esc(l.p.nombre.replace(/\s*\([^)]*\)/g, ""))}</div>
+      <div class="desc">${esc(l.p.desc)}</div>
+      <div class="foto-zona">
+        <div class="squircle">
+          ${l.p.foto ? `<img class="ph" src="${l.p.foto}" alt="">` : `<div class="sinfoto"><img src="assets/logo-rosa.png" alt=""></div>`}
+          <img class="st1" src="assets/star-azul.png" alt=""><img class="st2" src="assets/star-amarilla.png" alt="">
+        </div>
+        <div class="chips">${chips}</div>
+      </div>
+      <div class="dib-box">${l.p.dib ? `<img class="dib" src="assets/${l.p.dib}.png" alt="">` : (l.p.medidas ? `<div class="medtxt">${esc(l.p.medidas)}</div>` : "")}</div>
+      ${l.colorDet ? `<div class="norma" style="color:#F2A9C4">Colores: ${esc(l.colorDet)}</div>` : ""}
+      <div class="h-inv">Inversión</div>
+      <div class="pill inv">${fmt(l.sub)}</div>
+      <div class="cap">${detalle}Precio incluye IGV y válido hasta el ${fFecha(fVal)}</div>
+      <div style="flex:1 1 auto"></div>
+    </div>`;
+  }).join("");
+
+  const cardsIt = c.lineas.map(l => `
+    <div class="card-it"><div class="ci-l"><div class="n">${esc(l.p.nombre.replace(/\s*\([^)]*\)/g, ""))}</div>
+      <div class="s">${l.colorDet ? esc(l.colorDet) : (l.colorTxt ? "Color " + esc(l.colorTxt) : "Color por confirmar")}${l.pct ? " · personalización +" + l.pct + "%" : ""}${l.p.custom ? " · pieza a medida" : ""}</div></div>
+      <div class="ci-c">${l.cant}</div><div class="ci-r">${fmt(l.sub)}</div></div>`).join("")
+    + (() => {
+        if (!c.lineas.length) return "";
+        if (c.recojo) return `<div class="card-it"><div class="ci-l"><div class="n">Recojo en showroom — Chacarilla</div><div class="s">Listo en ${c.plazo} días hábiles · te esperamos para que veas las piezas armadas</div></div><div class="ci-c">1</div><div class="ci-r">S/. 0</div></div>`;
+        const monto = c.envio.tbd
+          ? (c.envio.gratisLima ? "S/. 0 en Lima" : "por confirmar")
+          : (c.envio.porCotizar ? "por confirmar" : (c.envio.tachado ? "S/. 0" : fmt(c.envio.valor)));
+        return `<div class="card-it"><div class="ci-l"><div class="n">Envío — ${distTxt}</div></div><div class="ci-c">1</div><div class="ci-r">${monto}</div></div>`;
+      })()
+    + (c.desc ? `<div class="card-it rebaja"><div class="ci-l"><div class="n">Descuento ${c.descPct}%</div><div class="s">${esc($("f-motivo").value) || "autorizado"}</div></div><div class="ci-c"></div><div class="ci-r">− ${fmt(c.desc)}</div></div>` : "");
+
+  const inversion = `
+  <div class="page m-res">
+    <div class="titulo-m">Resumen de compra</div>
+    <div class="cards">${cardsIt}</div>
+    <div class="total"><span>Total — todos los precios incluyen IGV</span><b>${fmt(c.total)}</b></div>
+    <div class="sec"><div class="sh">Métodos de pago</div><div class="sc">Cuenta de ahorros en soles BCP <b>${CUENTA.numero}</b> · CCI <b>${CUENTA.cci}</b>, a nombre de ${CUENTA.titular}.<br>¿Tarjeta o cuotas? Te enviamos tu link de pago seguro (Culqi o Mercado Pago) al aceptar.</div></div>
+    <img class="cajero" src="assets/mico-cajero.png" alt="">
+  </div>`;
+
+  const asesora = ASESORAS.find(a => a.nombre === ases) || ASESORAS[0];
+  const waMsg = encodeURIComponent("¡Hola " + asesora.nombre.split(" ")[0] + "! Soy " + ($("f-cliente").value.trim() || "…") + ". Acepto mi cotización de Mono Kids del " + $("f-fecha").value + " y quiero reservar la producción 💛");
+  const sec = (h, cuerpo) => `<div class="sec"><div class="sh">${h}</div><div class="sc">${cuerpo}</div></div>`;
+  const puntos = $("f-terminos").value.split("\n").map(t => esc(t.trim())).filter(Boolean);
+  const terminos = `
+  <div class="page m-term2">
+    <div class="titulo-m">Términos y condiciones</div>
+    <ul class="puntos">${puntos.map(t => `<li>${t}</li>`).join("")}</ul>
+    <a class="cta" href="https://wa.me/${asesora.wa}?text=${waMsg}">Aceptar y reservar</a>
+    <div class="nota">Abre el chat de WhatsApp de tu asesora <b>${asesora.nombre}</b>: <b>${fmtWa(asesora.wa)}</b></div>
+    <img class="logo-f" src="assets/logo-rosa.png" alt="Mono Kids">
+  </div>`;
+
+  $("doc").innerHTML = portada + fichas + inversion + terminos;
+}
+
+// ——— PDF ———
+function aviso(t) { const a = $("aviso"); a.style.display = "block"; a.textContent = t; }
+
+async function exportarComoImagenes() {
+  if (!window.html2canvas) { aviso("No se pudo generar. Revisa tu conexión y vuelve a intentar."); return false; }
+  aviso("Tu vista no permite bajar el PDF — generando la cotización en imágenes…");
+  document.body.classList.add("exporting");
+  try {
+    const paginas = [...document.querySelectorAll("#doc .page")];
+    const imgs = [];
+    for (const pg of paginas) {
+      const cv = await html2canvas(pg, { scale: 1.2, useCORS: true, backgroundColor: "#ffffff", logging: false });
+      imgs.push(cv.toDataURL("image/jpeg", 0.88));
+    }
+    let v = $("imgview");
+    if (!v) { v = document.createElement("div"); v.id = "imgview"; document.getElementById("doc").before(v); }
+    v.innerHTML = '<div class="iv-bar"><b>Guarda estas imágenes y mándalas por WhatsApp:</b> en el celular mantén presionada cada una; en computadora, clic derecho → Guardar imagen. <button onclick="document.getElementById(\'imgview\').remove()">Cerrar</button></div>'
+      + imgs.map(u => '<img src="' + u + '" alt="Página de la cotización">').join("");
+    v.scrollIntoView({ behavior: "smooth" });
+    aviso("Listo: guarda las imágenes que aparecen arriba del documento.");
+    return true;
+  } catch (e) { aviso("No se pudo generar. Intenta de nuevo."); return false; }
+  finally { document.body.classList.remove("exporting"); }
+}
+
+async function generarPdfBlob() {
+  const paginas = [...document.querySelectorAll("#doc .page")];
+  const pdf = new jspdf.jsPDF({ orientation: "portrait", unit: "px", format: [1080, 1920], hotfixes: ["px_scaling"] });
+  for (let i = 0; i < paginas.length; i++) {
+    const canvas = await html2canvas(paginas[i], { scale: 1.7, useCORS: true, backgroundColor: "#ffffff", logging: false });
+    if (i > 0) pdf.addPage([1080, 1920], "portrait");
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 1080, 1920);
+  }
+  return pdf.output("blob");
+}
+
+async function descargaDirecta(nombre) {
+  if (!window.jspdf || !window.html2canvas) { aviso("Sin conexión a las librerías. Revisa internet y reintenta."); return false; }
+  aviso("Generando el PDF… unos segundos.");
+  document.body.classList.add("exporting");
+  try {
+    const blob = await generarPdfBlob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+    aviso("PDF descargado ✓ Revisa tu carpeta de descargas.");
+    return true;
+  } catch (e) { aviso("No se pudo generar el PDF. Intenta de nuevo."); return false; }
+  finally { document.body.classList.remove("exporting"); }
+}
+
+async function exportarPdfArchivo(nombre) {
+  const dls = await window.claude.use("downloads");
+  if (!dls || !window.jspdf) {
+    return exportarComoImagenes();
+  }
+  aviso("Generando el PDF… unos segundos.");
+  document.body.classList.add("exporting");
+  try {
+    const paginas = [...document.querySelectorAll("#doc .page")];
+    const pdf = new jspdf.jsPDF({ orientation: "portrait", unit: "px", format: [1080, 1920], hotfixes: ["px_scaling"] });
+    for (let i = 0; i < paginas.length; i++) {
+      const canvas = await html2canvas(paginas[i], { scale: 1.7, useCORS: true, backgroundColor: "#ffffff", logging: false });
+      if (i > 0) pdf.addPage([1080, 1920], "portrait");
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", 0, 0, 1080, 1920);
+    }
+    const blob = pdf.output("blob");
+    await dls.save({ filename: nombre, data: blob });
+    aviso("PDF descargado ✓");
+    return true;
+  } catch (e) {
+    if (e && e.code === "declined") { aviso("Descarga cancelada."); return false; }
+    if (e && (e.code === "not_granted" || e.code === "unavailable" || e.code === "capability_disabled")) {
+      document.body.classList.remove("exporting");
+      return exportarComoImagenes();
+    }
+    aviso("No se pudo generar el PDF. Intenta de nuevo.");
+    return false;
+  } finally {
+    document.body.classList.remove("exporting");
+  }
+}
+
+async function registrar(num, c) {
+  try {
+    const db = await dbP;
+    if (!db) return;
+    await db.doc("cotizaciones/" + num).set({
+      cliente: $("f-cliente").value.trim(), distrito: $("f-distrito").value, asesora: $("f-asesora").value,
+      total: c.total, muebles: c.muebles, fecha: $("f-fecha").value, ts: Date.now(),
+      items: c.lineas.map(l => ({ id: l.custom ? "custom" : l.pid, nombre: l.p.nombre, cant: l.cant, color: l.colorTxt || null, sub: l.sub })),
+    });
+    const n = parseInt((num.match(/(\d+)$/) || [0, "0"])[1], 10);
+    await db.doc("contador/actual").set({ n: n + 1 });
+  } catch (e) {}
+}
+
+async function descargar() {
+  const c = calc();
+  const errs = [];
+  if (!$("f-cliente").value.trim()) errs.push("Falta el nombre del cliente.");
+  if (!c.lineas.length) errs.push("Agrega al menos un mueble.");
+  c.lineas.forEach(l => {
+    if (l.custom) {
+      if (!l.nombre.trim()) errs.push("Ponle nombre al mueble personalizado.");
+      if (!(parseFloat(l.precio) > 0)) errs.push("El personalizado necesita el precio aprobado por Gerencia.");
+    } else if (!l.acabado && !(l.colorDet || "").trim()) errs.push("Elige el color de: " + l.p.nombre + " (o escribe el detalle de colores por pieza). El color va cerrado, no \"por definir\".");
+  });
+  const d = parseFloat($("f-desc").value || "0") || 0;
+  if (d > 5) errs.push("El descuento máximo del vendedor es 5%. De 5% a 10% pide aprobación a Gerencia.");
+  if (d > 0 && !$("f-motivo").value.trim()) errs.push("Todo descuento lleva motivo.");
+  const al = $("alerta");
+  if (errs.length) { al.style.display = "block"; al.innerHTML = errs.join("<br>"); return; }
+  al.style.display = "none";
+  const num = $("f-num").value;
+  const nombre = "Cotización " + ($("f-cliente").value.trim() || "cliente") + " - Mono Kids.pdf";
+  let ok = true;
+  if (enArtifact) {
+    ok = await exportarPdfArchivo(nombre);
+  } else if (window.jspdf && window.html2canvas) {
+    ok = await descargaDirecta(nombre);
+  } else {
+    const t = document.title; document.title = nombre.replace(/\.pdf$/, "");
+    window.print();
+    document.title = t;
+  }
+  if (ok) {
+    registrar(num, c);
+    const n = parseInt((num.match(/(\d+)$/) || [0, "140"])[1], 10);
+    lsSet("mk-cot-n", String(n + 1));
+  }
+}
+
+init();
+</script>
+</body>
+</html>
