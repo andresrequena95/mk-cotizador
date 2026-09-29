@@ -132,6 +132,7 @@
   .card-it .ci-c { font-size: 32px; color: #85B9E6; width: 56px; text-align: center; }
   .card-it .ci-r { font-size: 36px; font-weight: 600; color: #85B9E6; min-width: 200px; text-align: right; }
   .card-it.rebaja .n, .card-it.rebaja .ci-r { color: #E98FB4; }
+  .card-it .tach { text-decoration: line-through; color: #BCD3E8; font-weight: 500; margin-right: 10px; font-size: 30px; }
   .m-res .total { width: 100%; background: #FDF3CD; border-radius: 26px; padding: 40px 46px;
     display: flex; justify-content: space-between; align-items: center; gap: 30px; margin-top: 46px; }
   .m-res .total span { font-size: 29px; color: #E98FB4; text-align: left; max-width: 470px; }
@@ -238,7 +239,7 @@ const ZONAS = {
   D: { tarifa: 120, distritos: ["Magdalena", "Cercado de Lima", "Jesús María", "Lince", "Pueblo Libre", "San Miguel"] },
   E: { tarifa: 130, distritos: ["Ventanilla", "Comas", "San Juan de Lurigancho", "Los Olivos", "Santa Anita", "Ate"] },
 };
-const UMBRAL_ENVIO_GRATIS = 1200;
+// Regla de Gerencia (29/09/2026): el flete SIEMPRE se cobra segun zona. No existe envio gratis.
 const INSTALACION = { hasta2: 120, de3a5: 200 };
 const PRODUCTOS = [
   { id: "pack-blocky-grande", cat: "Packs", nombre: "Pack Blocky Grande", precio: 2150,
@@ -557,12 +558,9 @@ function calc() {
   const zona = Object.entries(ZONAS).find(([z, d]) => d.distritos.includes(distrito));
   if (recojo) envio = { texto: "Recojo en showroom — Chacarilla, Surco", valor: 0, tachado: null };
   else if (zona) {
-    const tarifa = zona[1].tarifa;
-    envio = subProductos >= UMBRAL_ENVIO_GRATIS
-      ? { texto: "Envío a " + distrito + " — incluido en tu compra", valor: 0, tachado: tarifa }
-      : { texto: "Envío a " + distrito + " (zona " + zona[0] + ")", valor: tarifa, tachado: null };
+    envio = { texto: "Envío a " + distrito + " (zona " + zona[0] + ")", valor: zona[1].tarifa, tachado: null };
   } else if (distrito === "TBD") {
-    envio = { texto: "Envío — se confirma con la dirección", valor: 0, tachado: null, porCotizar: true, tbd: true, gratisLima: subProductos >= UMBRAL_ENVIO_GRATIS };
+    envio = { texto: "Envío — se confirma con la dirección", valor: 0, tachado: null, porCotizar: true, tbd: true };
   } else envio = { texto: distrito === "PROV" ? "Envío a provincia — se cotiza con Olva" : "Envío — se cotiza según dirección", valor: 0, tachado: null, porCotizar: true };
   const descPct = Math.min(parseFloat($("f-desc").value || "0") || 0, 5);
   const instCobrada = envio.tbd ? 0 : inst;
@@ -676,9 +674,7 @@ function render() {
     + (() => {
         if (!c.lineas.length) return "";
         if (c.recojo) return `<div class="card-it"><div class="ci-l"><div class="n">Recojo en showroom — Chacarilla</div><div class="s">Listo en ${c.plazo} días hábiles · te esperamos para que veas las piezas armadas</div></div><div class="ci-c">1</div><div class="ci-r">S/. 0</div></div>`;
-        const monto = c.envio.tbd
-          ? (c.envio.gratisLima ? "S/. 0 en Lima" : "por confirmar")
-          : (c.envio.porCotizar ? "por confirmar" : (c.envio.tachado ? "S/. 0" : fmt(c.envio.valor)));
+        const monto = c.envio.porCotizar ? "por confirmar" : fmt(c.envio.valor);
         return `<div class="card-it"><div class="ci-l"><div class="n">Envío — ${distTxt}</div></div><div class="ci-c">1</div><div class="ci-r">${monto}</div></div>`;
       })()
     + (c.desc ? `<div class="card-it rebaja"><div class="ci-l"><div class="n">Descuento ${c.descPct}%</div><div class="s">${esc($("f-motivo").value) || "autorizado"}</div></div><div class="ci-c"></div><div class="ci-r">− ${fmt(c.desc)}</div></div>` : "");
