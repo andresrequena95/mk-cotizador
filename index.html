@@ -191,6 +191,9 @@
     <div><label for="f-plazo">Plazo de entrega (días háb.)</label><input type="number" id="f-plazo" min="12" placeholder="auto"></div>
   </div>
   <div class="hint">El plazo se calcula solo (mínimo 12). Súbelo si la pieza demora más; no baja del mínimo.</div>
+  <label for="f-envio">Envío (S/.)</label>
+  <input type="number" id="f-envio" min="0" step="5" placeholder="se llena solo según la zona">
+  <div class="hint">Se autollena al elegir distrito (A 60 · B 90 · C 100 · D 120 · E 130). Ajústalo solo con tarifa aprobada por Gerencia.</div>
   <label for="f-asesora">Asesora responsable</label><select id="f-asesora"></select>
   <div class="chk" style="margin-top:10px"><input type="checkbox" id="f-recojo"><label for="f-recojo" style="margin:0">Recojo en showroom (Chacarilla) — sin envío</label></div>
 
@@ -452,6 +455,12 @@ function init() {
     selP.appendChild(g);
   });
   document.querySelectorAll("#panel input, #panel select").forEach(el => el.addEventListener("input", render));
+  const tarifaZona = d => { const z = Object.entries(ZONAS).find(([k, v]) => v.distritos.includes(d)); return z ? z[1].tarifa : null; };
+  $("f-distrito").addEventListener("change", () => {
+    const t = tarifaZona($("f-distrito").value);
+    $("f-envio").value = t ?? "";
+    render();
+  });
   const fit = () => {
     const stacked = window.innerWidth <= 1000;
     const s = Math.min(1, (window.innerWidth - (stacked ? 48 : 440)) / 1080);
@@ -556,8 +565,11 @@ function calc() {
   const sinItems = muebles === 0;
   let envio;
   const zona = Object.entries(ZONAS).find(([z, d]) => d.distritos.includes(distrito));
+  const envioCampo = $("f-envio").value;
   if (recojo) envio = { texto: "Recojo en showroom — Chacarilla, Surco", valor: 0, tachado: null };
-  else if (zona) {
+  else if (envioCampo !== "" && !isNaN(parseFloat(envioCampo))) {
+    envio = { texto: "Envío a " + distrito, valor: Math.max(0, Math.round(parseFloat(envioCampo))), tachado: null };
+  } else if (zona) {
     envio = { texto: "Envío a " + distrito + " (zona " + zona[0] + ")", valor: zona[1].tarifa, tachado: null };
   } else if (distrito === "TBD") {
     envio = { texto: "Envío — se confirma con la dirección", valor: 0, tachado: null, porCotizar: true, tbd: true };
