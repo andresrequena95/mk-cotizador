@@ -104,8 +104,9 @@
   .squircle { position: relative; width: 640px; height: 640px; }
   .squircle .ph { width: 100%; height: 100%; object-fit: cover; object-position: center 68%; border-radius: 21%; }
   .squircle .sinfoto { width: 100%; height: 100%; border-radius: 21%; background: var(--crema);
-    display: flex; align-items: center; justify-content: center; }
-  .squircle .sinfoto img { width: 60%; opacity: .85; }
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
+  .squircle .sinfoto img { width: 44%; opacity: .95; }
+  .squircle .sinfoto .sf-cap { font-size: 30px; color: #E98FB4; font-weight: 600; letter-spacing: .04em; }
   .squircle .st1 { position: absolute; top: -18px; left: -52px; width: 96px; z-index: 2; }
   .squircle .st2 { position: absolute; top: 16px; left: 30px; width: 118px; z-index: 2; }
   .chips { display: flex; flex-direction: column; gap: 42px; }
@@ -118,7 +119,15 @@
   .m-ficha .dib-box { width: 100%; height: 310px; margin-top: 34px;
     display: flex; align-items: center; justify-content: center; }
   .m-ficha .dib { max-width: 700px; max-height: 280px; object-fit: contain; }
-  .m-ficha .medtxt { font-size: 32px; color: var(--rosa-txt); }
+  .m-ficha .medtxt { text-align: center; border: 3px solid #F6CBDC; border-radius: 28px;
+    padding: 30px 70px; background: #FDFBF4; }
+  .m-ficha .medtxt .mt-l { font-size: 25px; color: #F2A9C4; letter-spacing: .14em;
+    text-transform: uppercase; font-weight: 600; margin-bottom: 10px; }
+  .m-ficha .medtxt .mt-v { font-size: 42px; color: var(--rosa-txt); font-weight: 600; }
+  .acab .sw { width: 92px; height: 92px; border-radius: 50%; margin: 0 auto;
+    background: var(--crema); border: 5px dashed #F2A9C4; display: flex;
+    align-items: center; justify-content: center; font-size: 40px; color: #E98FB4; }
+  .acab.sel .sw { outline: 6px solid var(--rosa); outline-offset: 4px; border-style: solid; }
   .m-ficha .norma { font-size: 26px; color: #85B9E6; margin-top: 6px; max-width: 860px; }
   .m-ficha .h-inv { font-family: "Random Wednesday", "Poppins", sans-serif; font-size: 56px; color: var(--rosa-cat); margin-top: 34px; }
   .m-ficha .pill.inv { margin-top: 20px; font-size: 46px; font-weight: 600; min-width: 520px; }
@@ -423,7 +432,6 @@ const ASESORAS = [
 ];
 const fmtWa = w => "(+51) " + w.slice(2, 5) + " " + w.slice(5, 8) + " " + w.slice(8);
 const CUENTA = { banco: "Cuenta de ahorros en soles BCP", numero: "19471865480091", cci: "00219417186548009197", titular: "Mono Atelier S.A.C." };
-const WHATSAPP = "51913580567";
 
 // ═══════════ App ═══════════
 const $ = id => document.getElementById(id);
@@ -449,6 +457,9 @@ function init() {
   selD.add(new Option("Provincia — envío por cotizar (Olva)", "PROV"));
   const selA = $("f-asesora");
   ASESORAS.forEach(a => selA.add(new Option(a.nombre, a.nombre)));
+  const dl = document.createElement("datalist"); dl.id = "lista-acabados";
+  ACABADOS.forEach(a => dl.appendChild(new Option(a.nombre)));
+  document.body.appendChild(dl);
   const selP = $("f-producto");
   [...new Set(PRODUCTOS.map(p => p.cat))].forEach(c => {
     const g = document.createElement("optgroup"); g.label = c;
@@ -599,13 +610,16 @@ function renderPanel(c) {
       <label>Descripción corta (para la ficha)</label><input type="text" value="${esc(l.descc)}" placeholder="Litera en melamina con escalera de cajones…" onchange="setItem(${i},'descc',this.value)">
       <div class="row2">
         <div><label>Medidas</label><input type="text" value="${esc(l.medidas)}" placeholder="180 × 90 × 160 cm" onchange="setItem(${i},'medidas',this.value)"></div>
-        <div><label>Color</label><input type="text" value="${esc(l.color)}" placeholder="Algodón" onchange="setItem(${i},'color',this.value)"></div>
+        <div><label>Color (cerrado, nunca "a elegir")</label><input type="text" list="lista-acabados" value="${esc(l.color)}" placeholder="Algodón" onchange="setItem(${i},'color',this.value)"></div>
       </div>
       <div class="row2">
         <div><label>Precio aprobado por Gerencia (S/.)</label><input type="number" min="0" value="${l.precio || ""}" onchange="setItem(${i},'precio',this.value)"></div>
         <div><label>Cantidad</label><input type="number" min="1" value="${l.cant}" onchange="setItem(${i},'cant',this.value)"></div>
       </div>
-      <label>Foto o render del mueble ${l.fotoData ? "· <b style=\'color:#4a8\'>cargada ✓</b>" : "(recomendado)"}</label>
+      <label>Foto o render del mueble ${l.fotoData ? "" : "(recomendado — sin foto, la ficha sale con el logo)"}</label>
+      ${l.fotoData ? `<div style="display:flex;align-items:center;gap:10px;margin:4px 0 6px">
+        <img src="${l.fotoData}" style="height:64px;border-radius:10px;border:1px solid #E8CFDB">
+        <button class="btn-mini" onclick="setItem(${i},'fotoData','')">quitar foto</button></div>` : ""}
       <input type="file" accept="image/*" onchange="setFoto(${i}, this)">
       <div class="hint">Nivel 3: el precio no se inventa — lo autoriza Gerencia y acá solo se transcribe.</div>
     </div>` : `
@@ -654,8 +668,12 @@ function render() {
 
   const fichas = c.lineas.map((l, idx) => {
     const aSel = ACABADOS.find(x => x.id === l.acabado);
+    const aCust = l.custom && l.color
+      ? ACABADOS.find(a => a.nombre.localeCompare(l.color.trim(), "es", { sensitivity: "base" }) === 0) : null;
     const chips = (aSel ? `<div class="acab sel"><img src="assets/chip-${aSel.id}.png" alt=""><span>${aSel.nombre}</span></div>` : "")
-      + (l.custom && l.color ? `<div class="acab sel"><span>${esc(l.color)}</span></div>` : "");
+      + (l.custom && l.color ? (aCust
+          ? `<div class="acab sel"><img src="assets/chip-${aCust.id}.png" alt=""><span>${aCust.nombre}</span></div>`
+          : `<div class="acab sel"><div class="sw">${esc(l.color.trim().charAt(0).toUpperCase())}</div><span>${esc(l.color)}</span></div>`) : "");
     const detalle = (l.cant > 1 || l.pct)
       ? fmt(l.unit) + " c/u · " + l.cant + (l.cant > 1 ? " unidades" : " unidad") + (l.pct ? " · personalización +" + l.pct + "%" : "") + "<br>"
       : "";
@@ -666,12 +684,12 @@ function render() {
       <div class="desc">${esc(l.p.desc)}</div>
       <div class="foto-zona">
         <div class="squircle">
-          ${l.p.foto ? `<img class="ph" src="${l.p.foto}" alt="">` : `<div class="sinfoto"><img src="assets/logo-rosa.png" alt=""></div>`}
+          ${l.p.foto ? `<img class="ph" src="${l.p.foto}" alt="">` : `<div class="sinfoto"><img src="assets/logo-rosa.png" alt=""><div class="sf-cap">Pieza única, hecha a tu medida</div></div>`}
           <img class="st1" src="assets/star-azul.png" alt=""><img class="st2" src="assets/star-amarilla.png" alt="">
         </div>
         <div class="chips">${chips}</div>
       </div>
-      <div class="dib-box">${l.p.dib ? `<img class="dib" src="assets/${l.p.dib}.png" alt="">` : (l.p.medidas ? `<div class="medtxt">${esc(l.p.medidas)}</div>` : "")}</div>
+      <div class="dib-box">${l.p.dib ? `<img class="dib" src="assets/${l.p.dib}.png" alt="">` : (l.p.medidas ? `<div class="medtxt"><div class="mt-l">Medidas</div><div class="mt-v">${esc(l.p.medidas)}</div></div>` : "")}</div>
       ${l.colorDet ? `<div class="norma" style="color:#F2A9C4">Colores: ${esc(l.colorDet)}</div>` : ""}
       <div class="h-inv">Inversión</div>
       <div class="pill inv">${fmt(l.sub)}</div>
