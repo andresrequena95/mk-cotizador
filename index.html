@@ -64,6 +64,9 @@
   #alerta { color: #b23; font-size: 12px; margin-top: 8px; display: none; }
   #aviso { color: var(--azul-med); font-size: 12px; margin-top: 8px; display: none; }
   .hint { font-size: 10.5px; color: #aaa; margin-top: 3px; }
+  .drop { border: 1.5px dashed #D9A7BD; border-radius: 8px; padding: 14px 10px; margin-top: 4px;
+    text-align: center; font-size: 11.5px; color: #9A5B72; background: #FBF4F7; cursor: pointer; }
+  .drop.over { background: #F5E6EC; border-color: #C9748F; }
 
   /* ————— Documento ————— */
   #doc { margin-left: 400px; padding: 26px 0; display: flex; flex-direction: column; align-items: center; gap: 26px; }
@@ -534,7 +537,15 @@ function setItem(i, campo, val) {
   render();
 }
 function setFoto(i, input) {
-  const f = input.files && input.files[0];
+  cargarFoto(i, input.files && input.files[0]);
+}
+function dropFoto(e, i) {
+  e.preventDefault();
+  e.currentTarget.classList.remove("over");
+  const f = [...(e.dataTransfer.files || [])].find(x => x.type.startsWith("image/"));
+  cargarFoto(i, f);
+}
+function cargarFoto(i, f) {
   if (!f) return;
   const img = new Image();
   img.onload = () => {
@@ -620,7 +631,11 @@ function renderPanel(c) {
       ${l.fotoData ? `<div style="display:flex;align-items:center;gap:10px;margin:4px 0 6px">
         <img src="${l.fotoData}" style="height:64px;border-radius:10px;border:1px solid #E8CFDB">
         <button class="btn-mini" onclick="setItem(${i},'fotoData','')">quitar foto</button></div>` : ""}
-      <input type="file" accept="image/*" onchange="setFoto(${i}, this)">
+      <input type="file" accept="image/*" id="foto-${i}" style="display:none" onchange="setFoto(${i}, this)">
+      <div class="drop" onclick="document.getElementById('foto-${i}').click()"
+        ondragover="event.preventDefault(); this.classList.add('over')"
+        ondragleave="this.classList.remove('over')"
+        ondrop="dropFoto(event, ${i})">📷 ${l.fotoData ? "Cambiar la foto" : "Subir foto"} — haz clic para elegirla o arrástrala aquí desde tu escritorio</div>
       <div class="hint">Nivel 3: el precio no se inventa — lo autoriza Gerencia y acá solo se transcribe.</div>
     </div>` : `
     <div class="item-card">
