@@ -105,7 +105,8 @@
   .m-ficha .titulo-m { margin-top: 34px; }
   .foto-zona { display: flex; align-items: center; gap: 48px; margin-top: 52px; }
   .squircle { position: relative; width: 640px; height: 640px; }
-  .squircle .ph { width: 100%; height: 100%; object-fit: cover; object-position: center 68%; border-radius: 21%; }
+  /* div con background en vez de <img>: html2canvas 1.4.1 ignora object-fit y deformaba las fotos */
+  .squircle .ph { width: 100%; height: 100%; background-size: cover; background-position: center 68%; border-radius: 21%; }
   .squircle .sinfoto { width: 100%; height: 100%; border-radius: 21%; background: var(--crema);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; }
   .squircle .sinfoto img { width: 44%; opacity: .95; }
@@ -699,7 +700,7 @@ function render() {
       <div class="desc">${esc(l.p.desc)}</div>
       <div class="foto-zona">
         <div class="squircle">
-          ${l.p.foto ? `<img class="ph" src="${l.p.foto}" alt="">` : `<div class="sinfoto"><img src="assets/logo-rosa.png" alt=""><div class="sf-cap">Pieza única, hecha a tu medida</div></div>`}
+          ${l.p.foto ? `<div class="ph" style="background-image:url('${l.p.foto}')"></div>` : `<div class="sinfoto"><img src="assets/logo-rosa.png" alt=""><div class="sf-cap">Pieza única, hecha a tu medida</div></div>`}
           <img class="st1" src="assets/star-azul.png" alt=""><img class="st2" src="assets/star-amarilla.png" alt="">
         </div>
         <div class="chips">${chips}</div>
