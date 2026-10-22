@@ -472,9 +472,16 @@ function init() {
   });
   document.querySelectorAll("#panel input, #panel select").forEach(el => el.addEventListener("input", render));
   const tarifaZona = d => { const z = Object.entries(ZONAS).find(([k, v]) => v.distritos.includes(d)); return z ? z[1].tarifa : null; };
+  let eraProvincia = false;
   $("f-distrito").addEventListener("change", () => {
     const t = tarifaZona($("f-distrito").value);
     $("f-envio").value = t ?? "";
+    // Venta a provincia: cambian las condiciones (100% adelantado, entrega en agencia)
+    const esProv = $("f-distrito").value === "PROV";
+    if (esProv !== eraProvincia) {
+      $("f-terminos").value = esProv ? terminosProvincia() : terminosLima();
+      eraProvincia = esProv;
+    }
     render();
   });
   const fit = () => {
@@ -483,7 +490,7 @@ function init() {
     document.documentElement.style.setProperty("--s", s);
   };
   window.addEventListener("resize", fit); fit();
-  $("f-terminos").value = [
+  window.terminosLima = () => [
     "Presupuesto válido por 07 días calendario, hasta el " + fFecha(fVal) + ".",
     "Todos los precios incluyen IGV y se emite comprobante de pago.",
     "El plazo de producción inicia el día hábil siguiente al abono del 50% y a la aprobación por escrito de acabados y especificaciones.",
@@ -494,6 +501,19 @@ function init() {
     "Retrasos por causas externas (clima, proveedores, fuerza mayor) no son penalizables.",
     "Los tonos, vetas y texturas pueden presentar ligeras variaciones respecto de muestras o renders, sin que ello constituya defecto.",
   ].join("\n");
+  window.terminosProvincia = () => [
+    "Presupuesto válido por 07 días calendario, hasta el " + fFecha(fVal) + ".",
+    "Todos los precios incluyen IGV y se emite comprobante de pago.",
+    "Venta a provincia: se abona el 100% del pedido antes de iniciar la producción.",
+    "El plazo de producción inicia el día hábil siguiente al abono y a la aprobación por escrito de acabados y especificaciones.",
+    "El pago no es reembolsable una vez iniciada la producción.",
+    "Mono Kids embala el pedido y lo entrega en la agencia de transporte de tu preferencia, en Lima. Al despacharlo te enviamos la guía y fotos del pedido embalado.",
+    "El costo del envío a provincia corre por cuenta del cliente y se paga directamente a la agencia.",
+    "La responsabilidad de Mono Kids termina con la entrega en agencia: el traslado corre por cuenta y riesgo de la agencia de transporte. Te recomendamos contratar el servicio con seguro.",
+    "Cualquier adicional o modificación posterior a la aprobación se cotiza por separado y puede variar el plazo de entrega.",
+    "Los tonos, vetas y texturas pueden presentar ligeras variaciones respecto de muestras o renders, sin que ello constituya defecto.",
+  ].join("\n");
+  $("f-terminos").value = terminosLima();
   $("hint-pdf").textContent = enArtifact
     ? "Se descarga el archivo listo para mandar por WhatsApp."
     : "En el diálogo elige “Guardar como PDF”, márgenes: ninguno, con gráficos de fondo.";
