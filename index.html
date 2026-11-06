@@ -118,6 +118,8 @@
   .acab span { display: block; font-size: 29px; color: #F2A9C4; margin-top: 8px; }
   .acab.sel img { outline: 6px solid var(--rosa); outline-offset: 4px; }
   .acab.sel span { font-weight: 600; color: #E98FB4; }
+  .foto-ref { font-size: 24px; line-height: 1.45; color: #F2A9C4; max-width: 230px; font-style: italic; }
+  .foto-zona .squircle { flex-shrink: 0; } /* la nota de foto no debe encoger la foto */
   .acab:not(.sel) { opacity: .55; }
   .m-ficha > * { flex: 0 0 auto; }
   .m-ficha .dib-box { width: 100%; height: 310px; margin-top: 34px;
@@ -379,7 +381,8 @@ const PRODUCTOS = [
   { id: "lampara-nube", cat: "Sillas y complementos", nombre: "Lámpara Nube", precio: 1750, madera: true,
     desc: "Madera torneada y pintada a mano, con pantalla de tela que reparte la luz sin encandilar: la luz del rincón de lectura.",
     medidas: "135 cm de alto", en1729: null,
-    acabados: ["caramel"], foto: F + "lampara-nube.jpg", dib: "dib-lampara-nube" },
+    // Pintada a mano: solo Algodón y Melón (Andrés, 06/11/2026). La foto del catálogo es la Algodón.
+    acabados: ["algodon", "melon"], fotoColor: "algodon", foto: F + "lampara-nube.jpg", dib: "dib-lampara-nube" },
   { id: "esc-blocky-80", cat: "Escritorios y módulos", nombre: "Escritorio Blocky (0.80 m)", precio: 650,
     desc: "El escritorio evolutivo Blocky solo, con tablero regulable en tres alturas.",
     medidas: "80 × 60 cm", en1729: "Tablero evolutivo: se regula en 3 alturas con ranuras",
@@ -441,6 +444,9 @@ const ASESORAS = [
 ];
 const fmtWa = w => "(+51) " + w.slice(2, 5) + " " + w.slice(5, 8) + " " + w.slice(8);
 const CUENTA = { banco: "Cuenta de ahorros en soles BCP", numero: "19471865480091", cci: "00219417186548009197", titular: "Mono Atelier S.A.C." };
+// URL de la app web de Apps Script que registra cada cotización en el Sheet
+// "MK · Registro de cotizaciones" y reparte el correlativo. Vacío = registro apagado.
+const REGISTRO_URL = "";
 
 // ═══════════ App ═══════════
 const $ = id => document.getElementById(id);
@@ -458,6 +464,10 @@ let items = [];
 function init() {
   const n = parseInt(lsGet("mk-cot-n", "141"), 10) || 141;
   $("f-num").value = "MK-2026-" + String(n).padStart(4, "0");
+  // El correlativo oficial lo reparte el Sheet; el local queda de respaldo sin conexión
+  if (REGISTRO_URL) fetch(REGISTRO_URL).then(r => r.json()).then(j => {
+    if (j.ok && j.siguiente) { $("f-num").value = "MK-2026-" + String(j.siguiente).padStart(4, "0"); render(); }
+  }).catch(() => {});
   $("f-fecha").value = fFecha(hoy);
   const selD = $("f-distrito");
   selD.add(new Option("Por confirmar — el lead aún no da distrito", "TBD"));
@@ -715,6 +725,9 @@ function render() {
       + (l.custom && l.color ? (aCust
           ? `<div class="acab sel"><img src="assets/chip-${aCust.id}.png" alt=""><span>${aCust.nombre}</span></div>`
           : `<div class="acab sel"><div class="sw">${esc(l.color.trim().charAt(0).toUpperCase())}</div><span>${esc(l.color)}</span></div>`) : "");
+    // Foto de otro color que el elegido: se aclara bajo los chips para no vender un color que no va.
+    const fRef = l.p.fotoColor && l.acabado && l.acabado !== l.p.fotoColor ? ACABADOS.find(x => x.id === l.p.fotoColor) : null;
+    const fotoRef = fRef && aSel ? `<div class="foto-ref">Foto referencial en ${fRef.nombre}.<br>La tuya se pinta a mano en ${aSel.nombre}.</div>` : "";
     const detalle = (l.cant > 1 || l.pct)
       ? fmt(l.unit) + " c/u · " + l.cant + (l.cant > 1 ? " unidades" : " unidad") + (l.pct ? " · personalización +" + l.pct + "%" : "") + "<br>"
       : "";
@@ -728,7 +741,7 @@ function render() {
           ${l.p.foto ? `<div class="ph" style="background-image:url('${l.p.foto}')"></div>` : `<div class="sinfoto"><img src="assets/logo-rosa.png" alt=""><div class="sf-cap">Pieza única, hecha a tu medida</div></div>`}
           <img class="st1" src="assets/star-azul.png" alt=""><img class="st2" src="assets/star-amarilla.png" alt="">
         </div>
-        <div class="chips">${chips}</div>
+        <div class="chips">${chips}${fotoRef}</div>
       </div>
       <div class="dib-box">${l.p.dib ? `<img class="dib" src="assets/${l.p.dib}.png" alt="">` : (l.p.medidas ? `<div class="medtxt"><div class="mt-l">Medidas</div><div class="mt-v">${esc(l.p.medidas)}</div></div>` : "")}</div>
       ${l.colorDet ? `<div class="norma" style="color:#F2A9C4">Colores: ${esc(l.colorDet)}</div>` : ""}
@@ -861,6 +874,23 @@ async function exportarPdfArchivo(nombre) {
   }
 }
 
+async function registrarEnSheet(c) {
+  if (!REGISTRO_URL) return;
+  try {
+    const r = await fetch(REGISTRO_URL, { method: "POST", body: JSON.stringify({
+      fecha: $("f-fecha").value, asesora: $("f-asesora").value,
+      cliente: $("f-cliente").value.trim(), distrito: $("f-distrito").value,
+      items: c.lineas.map(l => ({ cant: l.cant, nombre: l.p.nombre,
+        color: l.colorDet || l.colorTxt || (l.custom ? l.color : "") || "", sub: l.sub })),
+      muebles: c.muebles, descPct: c.descPct || 0, motivo: $("f-motivo").value.trim(),
+      envio: c.recojo ? 0 : (c.envio && !c.envio.porCotizar ? c.envio.valor : null),
+      total: c.total,
+    }) });
+    const j = await r.json();
+    if (j.ok && j.siguiente) { $("f-num").value = "MK-2026-" + String(j.siguiente).padStart(4, "0"); }
+  } catch (e) {} // el registro nunca bloquea ni retrasa la descarga
+}
+
 async function registrar(num, c) {
   try {
     const db = await dbP;
@@ -906,6 +936,7 @@ async function descargar() {
   }
   if (ok) {
     registrar(num, c);
+    registrarEnSheet(c);
     const n = parseInt((num.match(/(\d+)$/) || [0, "140"])[1], 10);
     lsSet("mk-cot-n", String(n + 1));
   }
